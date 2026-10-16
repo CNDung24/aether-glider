@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AETHER GLIDER 3D — Solo & 1v1 Split-Screen Versus</title>
+  <!-- Three.js CDN Official -->
+  <script src="three.min.js"></script>
+  <script>if (typeof THREE === 'undefined') document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\\/script>');</script>
+  <!-- PeerJS Official CDN for 1v1 P2P Multiplayer without server -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #050714;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      color: #f1f5f9;
+    }
+    #game-wrapper {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      display: flex;
+    }
+    .viewport {
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+    .viewport.single {
+      width: 100%;
+    }
+    .viewport.split {
+      width: 50%;
+    }
+    .viewport-divider {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: linear-gradient(180deg, #38bdf8 0%, #f472b6 50%, #38bdf8 100%);
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.8);
+      z-index: 15;
+      display: none;
+    }
+
+    /* Player Viewport Corner Badges (Completely away from center track) */
+    .vp-badge {
+      position: absolute;
+      top: 14px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 16px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+      z-index: 20;
+      pointer-events: none;
+    }
+    .vp-badge.p1 {
+      left: 16px;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+    }
+    .vp-badge.p2 {
+      right: 16px;
+      border: 1px solid rgba(244, 114, 182, 0.4);
+      color: #f472b6;
+    }
+    .badge-label {
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+    }
+    .badge-score {
+      font-family: monospace;
+      font-size: 1.25rem;
+      font-weight: 900;
+      color: #ffffff;
+    }
+
+    /* Minimalist Center Pill on Divider Line */
+    .vs-center-pill {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0f172a;
+      border: 1px solid #38bdf8;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 0.7rem;
+      font-weight: 900;
+      color: #ffffff;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
+      z-index: 25;
+      letter-spacing: 1px;
+    }
+
+    /* Solo Mode Clean Top HUD */
+    .solo-hud {
+      position: absolute;
+      top: 16px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      pointer-events: none;
+      z-index: 25;
+    }
+    .hud-pill {
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 999px;
+      padding: 6px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    }
+    .hud-lbl {
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      color: #94a3b8;
+    }
+    .hud-val {
+      font-size: 1.25rem;
+      font-weight: 900;
+      font-family: monospace;
+      color: #38bdf8;
+    }
+
+    /* Discreet touch buttons at bottom corners */
+    .touch-controls {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+      z-index: 20;
+      opacity: 0.55;
+      transition: opacity 0.2s ease;
+    }
+    .touch-controls:hover {
+      opacity: 0.95;
+    }
+    .arrow-btn {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(10px);
+      border: 1.5px solid rgba(56, 189, 248, 0.35);
+      color: #38bdf8;
+      font-size: 1.3rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: auto;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      transition: all 0.12s ease;
+      outline: none;
+    }
+    .arrow-btn:active, .arrow-btn.pressed {
+      transform: scale(0.9);
+      background: rgba(56, 189, 248, 0.3);
+      border-color: #38bdf8;
+      color: #ffffff;
+    }
+
+    /* Modal Screens */
+    .screen-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle at center, rgba(15, 23, 42, 0.8) 0%, rgba(5, 7, 20, 0.95) 100%);
+      backdrop-filter: blur(14px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .screen-card {
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 28px;
+      padding: 32px 40px;
+      text-align: center;
+      max-width: 480px;
+      width: 90%;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 30px rgba(56, 189, 248, 0.2);
+    }
+    .game-title {
+      font-size: 2.1rem;
+      font-weight: 900;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #38bdf8 0%, #f472b6 50%, #fbbf24 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .game-subtitle {
+      font-size: 0.88rem;
+      color: #94a3b8;
+      margin-bottom: 22px;
+      line-height: 1.5;
+    }
+
+    /* Mode Selection Tabs & Inputs */
+    .mode-options {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .btn-main {
+      background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%);
+      color: #ffffff;
+      border: none;
+      border-radius: 999px;
+      padding: 13px 30px;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(2, 132, 199, 0.4);
+      transition: all 0.2s ease;
+      outline: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-main:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(56, 189, 248, 0.5);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #f1f5f9;
+      border-radius: 999px;
+      padding: 12px 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    .join-box {
+      display: flex;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .input-code {
+      flex: 1;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 999px;
+      padding: 10px 18px;
+      color: #ffffff;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-align: center;
+      text-transform: uppercase;
+      outline: none;
+    }
+    .input-code:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+    }
+    .room-badge {
+      background: rgba(56, 189, 248, 0.12);
+      border: 1px dashed #38bdf8;
+      border-radius: 14px;
+      padding: 12px;
+      margin: 14px 0;
+      color: #38bdf8;
+      font-size: 0.95rem;
+    }
+    .room-code-display {
+      font-size: 1.8rem;
+      font-weight: 900;
+      letter-spacing: 4px;
+      color: #ffffff;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body tabindex="0">
+
+  <!-- Main Viewports Layout (Single or Split 1v1) -->
+  <div id="game-wrapper">
+    <!-- Viewport 1 (Your View) -->
+    <div class="viewport single" id="vp-p1">
+      <div class="vp-badge p1" id="badge-p1">
+        <span class="badge-label">🚀 BẠN</span>
+        <span class="badge-score" id="vs-p1-score">0</span>
+      </div>
+    </div>
+    <!-- Middle Split Divider with Minimalist VS Dot -->
+    <div class="viewport-divider" id="vp-divider">
+      <div class="vs-center-pill">VS</div>
+    </div>
+    <!-- Viewport 2 (Opponent / Friend View) -->
+    <div class="viewport" id="vp-p2" style="display: none;">
+      <div class="vp-badge p2" id="badge-p2">
+        <span class="badge-label">👾 ĐỐI THỦ</span>
+        <span class="badge-score" id="vs-p2-score">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Solo HUD (Only in single-player mode) -->
+  <div class="solo-hud" id="solo-hud">
+    <div class="hud-pill">
+      <span class="hud-lbl">ĐIỂM</span>
+      <span class="hud-val" id="hud-score">0</span>
+    </div>
+    <div class="hud-pill" id="hud-best-box">
+      <span class="hud-lbl">KỶ LỤC</span>
+      <span class="hud-val" id="hud-best" style="color: #f472b6;">0</span>
+    </div>
+    <div class="hud-pill">
+      <span class="hud-lbl">TỐC ĐỘ</span>
+      <span class="hud-val" id="hud-speed" style="color: #fbbf24;">1.0x</span>
+    </div>
+  </div>
+
+  <!-- On-Screen Steering Buttons (Bottom Corners) -->
+  <div class="touch-controls" id="touch-controls">
+    <button class="arrow-btn" id="btn-left">◀</button>
+    <button class="arrow-btn" id="btn-right">▶</button>
+  </div>
+
+  <!-- Lobby & Room Selection Screen -->
+  <div class="screen-overlay" id="start-screen">
+    <div class="screen-card">
+      <div class="game-title">Aether Glider 3D</div>
+      <p class="game-subtitle">Chế độ chơi đơn hoặc Solo 1v1 chia đôi màn hình cùng bạn bè!</p>
+
+      <div class="mode-options" id="menu-main">
+        <button class="btn-main" id="btn-mode-solo">
+          <span>🚀</span> Chơi Đơn (Solo Luyện Tập)
+        </button>
+        <button class="btn-secondary" id="btn-mode-host">
+          <span>👑</span> Tạo Phòng 1v1 (Host Game)
+        </button>
+        <div class="join-box">
+          <input type="text" class="input-code" id="join-code-input" placeholder="MÃ PHÒNG (VD: 8821)" maxlength="6" />
+          <button class="btn-main" id="btn-mode-join" style="padding: 10px 20px;">Vào</button>
+        </div>
+      </div>
+
+      <!-- Room Waiting Box -->
+      <div id="room-waiting" style="display: none;">
+        <div class="room-badge">
+          <div>Gửi mã này cho bạn bè để cùng vào phòng:</div>
+          <div class="room-code-display" id="display-room-code">----</div>
+          <button id="btn-copy-code" style="margin-top: 8px; background: rgba(56, 189, 248, 0.2); border: 1px solid #38bdf8; color: #38bdf8; border-radius: 999px; padding: 4px 14px; font-size: 0.8rem; cursor: pointer; font-weight: 600;">📋 Sao chép mã</button>
+        </div>
+        <div style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 16px;">
+          ⏳ Đang chờ bạn bè kết nối...
+        </div>
+        <button class="btn-secondary" id="btn-cancel-room">Hủy Bỏ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Game Over Screen -->
+  <div class="screen-overlay" id="gameover-screen" style="display: none;">
+    <div class="screen-card">
+      <div class="game-title" id="go-title">Kết Thúc Lượt Chơi</div>
+      <p class="game-subtitle" id="gameover-msg">Một trận đấu nghẹt thở!</p>
+      <div style="background: rgba(255,255,255,0.05); border-radius: 16px; padding: 16px; margin-bottom: 20px; display: flex; justify-content: space-around;">
+        <div class="stat-item">
+          <span class="stat-label">Điểm Của Bạn</span>
+          <span class="stat-value" id="go-score">0</span>
+        </div>
+        <div class="stat-item" id="go-opponent-box" style="display: none;">
+          <span class="stat-label">Điểm Đối Thủ</span>
+          <span class="stat-value" id="go-opponent-score" style="color: #f472b6;">0</span>
+        </div>
+      </div>
+      <button class="btn-main" id="btn-replay">CHƠI LẠI NGAY 🔁</button>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       1. WEB AUDIO API SYNTHESIZER
+       ========================================================================== */
+    class CyberAudio {
+      constructor() {
+        this.ctx = null;
+        this.master = null;
+        this.engineOsc = null;
+        this.engineGain = null;
+      }
+      init() {
+        if (this.ctx) return;
+        const AudioClass = window.AudioContext || window.webkitAudioContext;
+        if (!AudioClass) return;
+        this.ctx = new AudioClass();
+        this.master = this.ctx.createGain();
+        this.master.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        this.master.connect(this.ctx.destination);
+      }
+      resume() {
+        this.init();
+        if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+      }
+      playCoin() {
+        try {
+          this.resume();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(587.33, now);
+          osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+          g.gain.setValueAtTime(0.001, now);
+          g.gain.linearRampToValueAtTime(0.28, now + 0.01);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+          osc.connect(g);
+          g.connect(this.master);
+          osc.start(now);
+          osc.stop(now + 0.25);
+        } catch (e) {}
+      }
+      playCrash() {
+        try {
+          this.resume();
+          if (!this.ctx) return;
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const g = this.ctx.createGain();
+          osc.type = "sawtooth";
+          osc.frequency.setValueAtTime(140, now);
+          osc.frequency.exponentialRampToValueAtTime(32, now + 0.6);
+          g.gain.setValueAtTime(0.45, now);
+          g.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+          osc.connect(g);
+          g.connect(this.master);
+          osc.start(now);
+          osc.stop(now + 0.7);
+        } catch (e) {}
+      }
+      startEngine() {
+        try {
+          this.resume();
+          if (!this.ctx || this.engineOsc) return;
+          const now = this.ctx.currentTime;
+          this.engineOsc = this.ctx.createOscillator();
+          this.engineGain = this.ctx.createGain();
+          this.engineOsc.type = "sine";
+          this.engineOsc.frequency.setValueAtTime(80, now);
+          this.engineGain.gain.setValueAtTime(0.001, now);
+          this.engineGain.gain.linearRampToValueAtTime(0.08, now + 0.5);
+          this.engineOsc.connect(this.engineGain);
+          this.engineGain.connect(this.master);
+          this.engineOsc.start(now);
+        } catch (e) {}
+      }
+      updateEnginePitch(ratio) {
+        try {
+          if (this.engineOsc && this.ctx) {
+            this.engineOsc.frequency.setTargetAtTime(80 + ratio * 45, this.ctx.currentTime, 0.1);
+          }
+        } catch (e) {}
+      }
+      stopEngine() {
+        try {
+          if (this.engineOsc && this.engineGain && this.ctx) {
+            this.engineGain.gain.linearRampToValueAtTime(0.0001, this.ctx.currentTime + 0.2);
+            setTimeout(() => {
+              if (this.engineOsc) {
+                this.engineOsc.stop();
+                this.engineOsc.disconnect();
+                this.engineOsc = null;
+              }
+            }, 250);
+          }
+        } catch (e) {}
+      }
+    }
+    const audio = new CyberAudio();
+
+    /* ==========================================================================
+       2. THREE.JS SYSTEM: DUAL VIEWPORTS (SPLIT-SCREEN 1v1 SUPPORT)
+       ========================================================================== */
+    const ROAD_WIDTH = 9.0;
+    const ROAD_LENGTH = 120;
+    const LANES = [-2.6, 0, 2.6];
+
+    // Helper: Create 3D Scene Environment
+    function createHighwayScene(themeColor = 0x38bdf8) {
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x050714);
+      scene.fog = new THREE.FogExp2(0x050714, 0.016);
+
+      const amb = new THREE.AmbientLight(0x1e293b, 1.4);
+      scene.add(amb);
+
+      const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+      dir.position.set(5, 15, 8);
+      scene.add(dir);
+
+      // Road
+      const roadGeo = new THREE.PlaneGeometry(ROAD_WIDTH, ROAD_LENGTH);
+      const roadMat = new THREE.MeshStandardMaterial({ color: 0x070c1b, roughness: 0.3, metalness: 0.5 });
+      const road = new THREE.Mesh(roadGeo, roadMat);
+      road.rotation.x = -Math.PI / 2;
+      road.position.z = -ROAD_LENGTH / 2 + 10;
+      scene.add(road);
+
+      // Neon grid
+      const grid = new THREE.GridHelper(ROAD_LENGTH, 60, themeColor, 0x1e293b);
+      grid.position.set(0, 0.02, -ROAD_LENGTH / 2 + 10);
+      grid.scale.x = ROAD_WIDTH / ROAD_LENGTH;
+      scene.add(grid);
+
+      // Side rails
+      const railGeo = new THREE.BoxGeometry(0.15, 0.25, ROAD_LENGTH);
+      const railL = new THREE.Mesh(railGeo, new THREE.MeshBasicMaterial({ color: themeColor }));
+      railL.position.set(-ROAD_WIDTH / 2, 0.12, -ROAD_LENGTH / 2 + 10);
+      scene.add(railL);
+
+      const railR = new THREE.Mesh(railGeo, new THREE.MeshBasicMaterial({ color: 0xf472b6 }));
+      railR.position.set(ROAD_WIDTH / 2, 0.12, -ROAD_LENGTH / 2 + 10);
+      scene.add(railR);
+
+      return { scene, grid };
+    }
+
+    // Helper: Create Delta Wing Glider
+    function createGliderMesh(color = 0x38bdf8) {
+      const group = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.ConeGeometry(0.65, 2.0, 4), new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.2, metalness: 0.8 }));
+      body.rotation.x = Math.PI / 2;
+      body.rotation.y = Math.PI / 4;
+      group.add(body);
+
+      const cockpit = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.22, 0.7), new THREE.MeshStandardMaterial({ color: color, emissive: color, emissiveIntensity: 0.6 }));
+      cockpit.position.set(0, 0.25, -0.2);
+      group.add(cockpit);
+
+      const thruster = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.18, 0.8, 12), new THREE.MeshBasicMaterial({ color: color }));
+      thruster.position.set(0, 0.1, 1.1);
+      thruster.rotation.x = Math.PI / 2;
+      group.add(thruster);
+
+      group.position.set(0, 0.45, 0);
+      return group;
+    }
+
+    // Viewport 1 (Player 1 / You)
+    const vp1Container = document.getElementById('vp-p1');
+    const renderer1 = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer1.setSize(vp1Container.clientWidth, vp1Container.clientHeight);
+    renderer1.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    vp1Container.appendChild(renderer1.domElement);
+
+    const camera1 = new THREE.PerspectiveCamera(55, vp1Container.clientWidth / vp1Container.clientHeight, 0.1, 150);
+    camera1.position.set(0, 3.2, 7.5);
+    camera1.lookAt(0, 1.2, -10);
+
+    const world1 = createHighwayScene(0x38bdf8);
+    const ship1 = createGliderMesh(0x38bdf8);
+    world1.scene.add(ship1);
+
+    // Viewport 2 (Player 2 / Opponent)
+    const vp2Container = document.getElementById('vp-p2');
+    const renderer2 = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer2.setSize(vp2Container.clientWidth || 100, vp2Container.clientHeight || 100);
+    renderer2.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    vp2Container.appendChild(renderer2.domElement);
+
+    const camera2 = new THREE.PerspectiveCamera(55, 1, 0.1, 150);
+    camera2.position.set(0, 3.2, 7.5);
+    camera2.lookAt(0, 1.2, -10);
+
+    const world2 = createHighwayScene(0xf472b6);
+    const ship2 = createGliderMesh(0xf472b6);
+    world2.scene.add(ship2);
+
+    /* ==========================================================================
+       3. GAMEPLAY STATE & MULTIPLAYER P2P (PEERJS)
+       ========================================================================== */
+    let gameMode = 'solo'; // 'solo' | 'versus'
+    let isPlaying = false;
+    let isHost = false;
+    let peer = null;
+    let peerConn = null;
+
+    let score1 = 0;
+    let targetX1 = 0;
+    let currentX1 = 0;
+    let isAlive1 = true;
+
+    let score2 = 0;
+    let targetX2 = 0;
+    let currentX2 = 0;
+    let isAlive2 = true;
+
+    let baseSpeed = 32.0;
+    let currentSpeed = baseSpeed;
+
+    const obstacles1 = [];
+    const energyOrbs1 = [];
+    const obstacles2 = [];
+    const energyOrbs2 = [];
+
+    const obGeo = new THREE.BoxGeometry(1.5, 2.0, 1.0);
+    const obMat = new THREE.MeshStandardMaterial({ color: 0xf43f5e, emissive: 0xf43f5e, emissiveIntensity: 0.3 });
+    const orbCoreGeo = new THREE.SphereGeometry(0.42, 16, 16);
+    const orbCoreMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+
+    let spawnTimer = 0;
+
+    function spawnElementsForWorld(sceneTarget, obList, orbList, seedLane, seedType) {
+      const lane = LANES[seedLane];
+      const spawnZ = -95;
+      if (seedType > 0.4) {
+        const ob = new THREE.Mesh(obGeo, obMat);
+        ob.position.set(lane, 1.0, spawnZ);
+        sceneTarget.add(ob);
+        obList.push(ob);
+      } else {
+        const orb = new THREE.Mesh(orbCoreGeo, orbCoreMat);
+        orb.position.set(lane, 0.8, spawnZ);
+        sceneTarget.add(orb);
+        orbList.push(orb);
+      }
+    }
+
+    // Update Score UI in either Solo or Versus mode
+    function updateScoreDisplay() {
+      if (gameMode === 'versus') {
+        const p1El = document.getElementById('vs-p1-score');
+        const p2El = document.getElementById('vs-p2-score');
+        if (p1El) p1El.textContent = score1;
+        if (p2El) p2El.textContent = score2;
+      } else {
+        const hudEl = document.getElementById('hud-score');
+        if (hudEl) hudEl.textContent = score1;
+      }
+    }
+
+    // Set Split Screen Mode UI
+    function setSplitScreen(enable) {
+      const divider = document.getElementById('vp-divider');
+      const badge1 = document.getElementById('badge-p1');
+      const badge2 = document.getElementById('badge-p2');
+      const soloHud = document.getElementById('solo-hud');
+
+      if (enable) {
+        vp1Container.className = 'viewport split';
+        vp2Container.style.display = 'block';
+        vp2Container.className = 'viewport split';
+        divider.style.display = 'block';
+        if (badge1) badge1.style.display = 'flex';
+        if (badge2) badge2.style.display = 'flex';
+        if (soloHud) soloHud.style.display = 'none';
+      } else {
+        vp1Container.className = 'viewport single';
+        vp2Container.style.display = 'none';
+        divider.style.display = 'none';
+        if (badge1) badge1.style.display = 'none';
+        if (badge2) badge2.style.display = 'none';
+        if (soloHud) soloHud.style.display = 'flex';
+      }
+      handleResize();
+    }
+
+    // Explosion Particle System
+    const explosionParticles = [];
+    const pGeo = new THREE.BoxGeometry(0.18, 0.18, 0.18);
+
+    function createExplosion(scene, pos, color = 0xf43f5e) {
+      const pMat = new THREE.MeshBasicMaterial({ color: color });
+      for (let i = 0; i < 36; i++) {
+        const p = new THREE.Mesh(pGeo, pMat);
+        p.position.copy(pos);
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.random() * Math.PI;
+        const spd = 5.0 + Math.random() * 10.0;
+        p.userData = {
+          vx: spd * Math.sin(phi) * Math.cos(theta),
+          vy: Math.abs(spd * Math.cos(phi)) + 2.5,
+          vz: spd * Math.sin(phi) * Math.sin(theta),
+          rotX: (Math.random() - 0.5) * 12,
+          rotY: (Math.random() - 0.5) * 12,
+          life: 1.0,
+          decay: 0.8 + Math.random() * 0.7
+        };
+        scene.add(p);
+        explosionParticles.push({ mesh: p, scene: scene });
+      }
+    }
+
+    function sendGameOverSignal() {
+      if (peerConn && peerConn.open) {
+        for (let i = 0; i < 5; i++) {
+          setTimeout(() => {
+            if (peerConn && peerConn.open) {
+              try { peerConn.send({ type: 'gameover' }); } catch(e) {}
+            }
+          }, i * 60);
+        }
+      }
+    }
+
+    function resetGame() {
+      // Clear world 1
+      obstacles1.forEach(o => world1.scene.remove(o));
+      obstacles1.length = 0;
+      energyOrbs1.forEach(o => world1.scene.remove(o));
+      energyOrbs1.length = 0;
+
+      // Clear world 2
+      obstacles2.forEach(o => world2.scene.remove(o));
+      obstacles2.length = 0;
+      energyOrbs2.forEach(o => world2.scene.remove(o));
+      energyOrbs2.length = 0;
+
+      // Clear explosion particles
+      explosionParticles.forEach(ep => ep.scene.remove(ep.mesh));
+      explosionParticles.length = 0;
+
+      score1 = 0; score2 = 0;
+      targetX1 = 0; currentX1 = 0;
+      targetX2 = 0; currentX2 = 0;
+      isAlive1 = true; isAlive2 = true;
+      ship1.visible = true;
+      ship2.visible = true;
+      ship1.position.set(0, 0.45, 0);
+      ship2.position.set(0, 0.45, 0);
+      currentSpeed = baseSpeed;
+
+      updateScoreDisplay();
+
+      audio.startEngine();
+      isPlaying = true;
+    }
+
+    function triggerGameOver(reason) {
+      if (!isPlaying) return;
+      isPlaying = false;
+      audio.stopEngine();
+      audio.playCrash();
+
+      const goScreen = document.getElementById('gameover-screen');
+      const goTitle = document.getElementById('go-title');
+      const goMsg = document.getElementById('gameover-msg');
+      const oppBox = document.getElementById('go-opponent-box');
+
+      document.getElementById('go-score').textContent = score1;
+
+      if (gameMode === 'versus') {
+        oppBox.style.display = 'flex';
+        document.getElementById('go-opponent-score').textContent = score2;
+
+        if (reason === 'you_crashed') {
+          goTitle.textContent = "BẠN ĐÃ THUA! 💥";
+          goMsg.textContent = "Bạn đã va chạm vào chướng ngại vật!";
+        } else if (reason === 'opponent_crashed') {
+          goTitle.textContent = "BẠN CHIẾN THẮNG! 👑";
+          goMsg.textContent = "Đối thủ đã va chạm vào chướng ngại vật!";
+        } else if (reason === 'opponent_disconnected') {
+          goTitle.textContent = "ĐỐI THỦ MẤT KẾT NỐI! ⚠️";
+          goMsg.textContent = "Đối thủ đã rời khỏi phòng đấu!";
+        } else {
+          goTitle.textContent = score1 >= score2 ? "BẠN CHIẾN THẮNG! 👑" : "ĐỐI THỦ THẮNG! 🎯";
+          goMsg.textContent = `Tỉ số chung cuộc: ${score1} vs ${score2}`;
+        }
+      } else {
+        oppBox.style.display = 'none';
+        goTitle.textContent = "Crashed!";
+        goMsg.textContent = "Một pha lướt sóng đầy kịch tính!";
+      }
+
+      // Hiện bảng sau 450ms để kịp thưởng thức hiệu ứng phi thuyền nổ tung
+      setTimeout(() => {
+        goScreen.style.display = 'flex';
+      }, 450);
+    }
+
+    /* ==========================================================================
+       4. P2P NETWORKING (PEERJS REAL-TIME SYNC)
+       ========================================================================== */
+    function initPeer(customId) {
+      if (typeof Peer === 'undefined') {
+        alert("Đang tải thư viện P2P. Vui lòng thử lại sau 2 giây!");
+        return null;
+      }
+      return new Peer(customId, { debug: 1 });
+    }
+
+    // Host: Tạo phòng
+    document.getElementById('btn-mode-host').addEventListener('click', () => {
+      audio.resume();
+      const randomCode = Math.floor(1000 + Math.random() * 9000).toString();
+      const peerId = `aether-${randomCode}`;
+
+      peer = initPeer(peerId);
+      if (!peer) return;
+
+      peer.on('open', () => {
+        isHost = true;
+        gameMode = 'versus';
+        document.getElementById('menu-main').style.display = 'none';
+        document.getElementById('room-waiting').style.display = 'block';
+        document.getElementById('display-room-code').textContent = randomCode;
+      });
+
+      peer.on('connection', (conn) => {
+        peerConn = conn;
+        setupConnection();
+        const startMatch = () => {
+          document.getElementById('start-screen').style.display = 'none';
+          setSplitScreen(true);
+          resetGame();
+        };
+        if (conn.open) {
+          startMatch();
+        } else {
+          conn.on('open', startMatch);
+        }
+      });
+    });
+
+    // Join: Vào phòng của bạn
+    document.getElementById('btn-mode-join').addEventListener('click', () => {
+      audio.resume();
+      const code = document.getElementById('join-code-input').value.trim();
+      if (!code) {
+        alert("Vui lòng nhập mã phòng gồm 4 số!");
+        return;
+      }
+
+      const hostPeerId = `aether-${code}`;
+      peer = initPeer();
+      if (!peer) return;
+
+      peer.on('open', () => {
+        peerConn = peer.connect(hostPeerId);
+        setupConnection();
+        peerConn.on('open', () => {
+          isHost = false;
+          gameMode = 'versus';
+          document.getElementById('start-screen').style.display = 'none';
+          setSplitScreen(true);
+          resetGame();
+        });
+      });
+    });
+
+    function setupConnection() {
+      if (!peerConn) return;
+
+      peerConn.on('data', (data) => {
+        if (!data) return;
+        // Nhận dữ liệu tọa độ & điểm số thời gian thực từ máy đối thủ
+        if (data.type === 'sync') {
+          targetX2 = data.x;
+          score2 = data.score;
+          updateScoreDisplay();
+
+          // Nếu Host gửi seed sinh chướng ngại vật giống hệt nhau
+          if (!isHost && data.spawn) {
+            spawnElementsForWorld(world1.scene, obstacles1, energyOrbs1, data.spawn.lane, data.spawn.type);
+            spawnElementsForWorld(world2.scene, obstacles2, energyOrbs2, data.spawn.lane, data.spawn.type);
+          }
+        } else if (data.type === 'gameover') {
+          if (isPlaying) {
+            isAlive2 = false;
+            createExplosion(world2.scene, ship2.position, 0xf472b6);
+            ship2.visible = false;
+            triggerGameOver('opponent_crashed');
+          }
+        } else if (data.type === 'restart') {
+          document.getElementById('gameover-screen').style.display = 'none';
+          resetGame();
+        }
+      });
+
+      peerConn.on('close', () => {
+        if (gameMode === 'versus' && isPlaying) {
+          triggerGameOver('opponent_disconnected');
+        }
+      });
+    }
+
+    document.getElementById('btn-copy-code').addEventListener('click', () => {
+      const code = document.getElementById('display-room-code').textContent;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(code).then(() => {
+          document.getElementById('btn-copy-code').textContent = '✅ Đã sao chép!';
+          setTimeout(() => {
+            document.getElementById('btn-copy-code').textContent = '📋 Sao chép mã';
+          }, 2000);
+        });
+      }
+    });
+
+    document.getElementById('btn-cancel-room').addEventListener('click', () => {
+      if (peer) peer.destroy();
+      document.getElementById('menu-main').style.display = 'flex';
+      document.getElementById('room-waiting').style.display = 'none';
+    });
+
+    // Chế độ Solo 1 người chơi
+    document.getElementById('btn-mode-solo').addEventListener('click', () => {
+      audio.resume();
+      gameMode = 'solo';
+      setSplitScreen(false);
+      document.getElementById('start-screen').style.display = 'none';
+      resetGame();
+    });
+
+    document.getElementById('btn-replay').addEventListener('click', () => {
+      audio.resume();
+      document.getElementById('gameover-screen').style.display = 'none';
+      if (gameMode === 'versus' && peerConn && peerConn.open) {
+        peerConn.send({ type: 'restart' });
+      }
+      resetGame();
+    });
+
+    /* ==========================================================================
+       5. INPUT CONTROLS (KEYBOARD, TOUCH BUTTONS)
+       ========================================================================== */
+    const keys = { left: false, right: false };
+
+    function setKey(e, isPressed) {
+      const code = e.code || '';
+      const key = (e.key || '').toLowerCase();
+      if (code === 'ArrowLeft' || code === 'KeyA' || key === 'a' || key === 'arrowleft') keys.left = isPressed;
+      if (code === 'ArrowRight' || code === 'KeyD' || key === 'd' || key === 'arrowright') keys.right = isPressed;
+    }
+
+    window.addEventListener('keydown', (e) => setKey(e, true));
+    window.addEventListener('keyup', (e) => setKey(e, false));
+
+    const btnL = document.getElementById('btn-left');
+    const btnR = document.getElementById('btn-right');
+    const bindBtn = (el, k) => {
+      el.addEventListener('pointerdown', (e) => { e.preventDefault(); keys[k] = true; el.classList.add('pressed'); });
+      el.addEventListener('pointerup', (e) => { e.preventDefault(); keys[k] = false; el.classList.remove('pressed'); });
+      el.addEventListener('pointerleave', () => { keys[k] = false; el.classList.remove('pressed'); });
+    };
+    bindBtn(btnL, 'left');
+    bindBtn(btnR, 'right');
+
+    /* ==========================================================================
+       6. 60 FPS MAIN SIMULATION & DUAL RENDERING LOOP
+       ========================================================================== */
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = Math.min(clock.getDelta(), 0.05);
+
+      // Update explosion particles continuously (even after game over)
+      for (let i = explosionParticles.length - 1; i >= 0; i--) {
+        const ep = explosionParticles[i];
+        const p = ep.mesh;
+        p.userData.life -= delta * p.userData.decay;
+        p.position.x += p.userData.vx * delta;
+        p.position.y += p.userData.vy * delta;
+        p.position.z += p.userData.vz * delta;
+        p.userData.vy -= 9.8 * delta;
+        p.rotation.x += p.userData.rotX * delta;
+        p.rotation.y += p.userData.rotY * delta;
+        p.scale.setScalar(Math.max(0.01, p.userData.life));
+        if (p.userData.life <= 0) {
+          ep.scene.remove(p);
+          explosionParticles.splice(i, 1);
+        }
+      }
+
+      if (isPlaying) {
+        currentSpeed = baseSpeed + (score1 * 0.035);
+        document.getElementById('hud-speed').textContent = `${(currentSpeed / baseSpeed).toFixed(1)}x`;
+        audio.updateEnginePitch(currentSpeed / baseSpeed);
+
+        score1 += Math.floor(delta * 12);
+        updateScoreDisplay();
+
+        // Player 1 Steering
+        const STEER_SPEED = 24.0;
+        if (keys.left) targetX1 = Math.max(targetX1 - STEER_SPEED * delta, -ROAD_WIDTH / 2 + 0.9);
+        if (keys.right) targetX1 = Math.min(targetX1 + STEER_SPEED * delta, ROAD_WIDTH / 2 - 0.9);
+
+        currentX1 += (targetX1 - currentX1) * 16 * delta;
+        ship1.position.x = currentX1;
+        // Giữ góc nghiêng tinh tế (-0.16) để đường đua không bị méo/nghiêng ngả
+        ship1.rotation.z = (targetX1 - currentX1) * -0.16;
+
+        // Player 2 Steering (Interpolated from network data)
+        currentX2 += (targetX2 - currentX2) * 16 * delta;
+        ship2.position.x = currentX2;
+        ship2.rotation.z = (targetX2 - currentX2) * -0.16;
+
+        // Grid scroll
+        world1.grid.position.z += currentSpeed * delta;
+        if (world1.grid.position.z > -ROAD_LENGTH / 2 + 10 + (ROAD_LENGTH / 60)) {
+          world1.grid.position.z = -ROAD_LENGTH / 2 + 10;
+        }
+        if (gameMode === 'versus') {
+          world2.grid.position.z = world1.grid.position.z;
+        }
+
+        // Spawn obstacles & orbs
+        spawnTimer += delta * (currentSpeed / 28);
+        let pendingSpawn = null;
+        if (spawnTimer > 0.42) {
+          spawnTimer = 0;
+          const seedLane = Math.floor(Math.random() * LANES.length);
+          const seedType = Math.random();
+
+          // Spawn on World 1
+          spawnElementsForWorld(world1.scene, obstacles1, energyOrbs1, seedLane, seedType);
+
+          // In 1v1, Host spawns identical obstacles for World 2 & broadcasts seed
+          if (gameMode === 'versus') {
+            spawnElementsForWorld(world2.scene, obstacles2, energyOrbs2, seedLane, seedType);
+            if (isHost) {
+              pendingSpawn = { lane: seedLane, type: seedType };
+            }
+          }
+        }
+
+        // Broadcast player 1 state to opponent (Continuous 60 FPS P2P Sync)
+        if (peerConn && peerConn.open) {
+          const payload = { type: 'sync', x: currentX1, score: score1 };
+          if (pendingSpawn) payload.spawn = pendingSpawn;
+          peerConn.send(payload);
+        }
+
+        // World 1 Collisions (Player 1 / You)
+        const shipRadius = 0.65;
+        for (let i = obstacles1.length - 1; i >= 0; i--) {
+          const ob = obstacles1[i];
+          ob.position.z += currentSpeed * delta;
+          if (isAlive1 && Math.hypot(ob.position.x - ship1.position.x, ob.position.z - ship1.position.z) < shipRadius + 0.75) {
+            isAlive1 = false;
+            createExplosion(world1.scene, ship1.position, 0x38bdf8);
+            ship1.visible = false;
+            sendGameOverSignal();
+            triggerGameOver('you_crashed');
+            return;
+          }
+          if (ob.position.z > 12) { world1.scene.remove(ob); obstacles1.splice(i, 1); }
+        }
+
+        for (let i = energyOrbs1.length - 1; i >= 0; i--) {
+          const orb = energyOrbs1[i];
+          orb.position.z += currentSpeed * delta;
+          if (Math.hypot(orb.position.x - ship1.position.x, orb.position.z - ship1.position.z) < shipRadius + 0.65) {
+            score1 += 10;
+            audio.playCoin();
+            world1.scene.remove(orb);
+            energyOrbs1.splice(i, 1);
+            continue;
+          }
+          if (orb.position.z > 12) { world1.scene.remove(orb); energyOrbs1.splice(i, 1); }
+        }
+
+        // World 2 Movements & Collision (Opponent Viewport)
+        if (gameMode === 'versus') {
+          for (let i = obstacles2.length - 1; i >= 0; i--) {
+            const ob = obstacles2[i];
+            ob.position.z += currentSpeed * delta;
+
+            // Xử lý va chạm của phi thuyền đối thủ trên Viewport 2:
+            if (isAlive2 && Math.hypot(ob.position.x - ship2.position.x, ob.position.z - ship2.position.z) < shipRadius + 0.75) {
+              isAlive2 = false;
+              createExplosion(world2.scene, ship2.position, 0xf472b6);
+              ship2.visible = false;
+              sendGameOverSignal();
+              triggerGameOver('opponent_crashed');
+              return;
+            }
+
+            if (ob.position.z > 12) { world2.scene.remove(ob); obstacles2.splice(i, 1); }
+          }
+          for (let i = energyOrbs2.length - 1; i >= 0; i--) {
+            const orb = energyOrbs2[i];
+            orb.position.z += currentSpeed * delta;
+            if (Math.hypot(orb.position.x - ship2.position.x, orb.position.z - ship2.position.z) < shipRadius + 0.65) {
+              score2 += 10;
+              updateScoreDisplay();
+              world2.scene.remove(orb);
+              energyOrbs2.splice(i, 1);
+              continue;
+            }
+            if (orb.position.z > 12) { world2.scene.remove(orb); energyOrbs2.splice(i, 1); }
+          }
+        }
+      }
+
+      // Render Viewport 1 (Always)
+      renderer1.render(world1.scene, camera1);
+
+      // Render Viewport 2 (In 1v1 Versus Mode)
+      if (gameMode === 'versus') {
+        renderer2.render(world2.scene, camera2);
+      }
+    }
+
+    function updateCameraForViewport(camera, container) {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w <= 0 || h <= 0) return;
+      const aspect = w / h;
+      camera.aspect = aspect;
+
+      if (aspect < 1.0) {
+        // Chế độ chia đôi màn hình (Viewport hẹp dọc):
+        // 1. Góc nhìn FOV thích ứng rộng để thấy trọn vẹn cả 3 làn đường và dải lan can neon 2 bên:
+        camera.fov = Math.min(84, Math.max(68, Math.round(55 / aspect * 0.92)));
+        // 2. Nâng góc nhìn camera cao lên (y = 4.8) và lùi lại (z = 9.8), nhìn thẳng về phía xa (-16):
+        // Giúp phi thuyền nằm sát mép dưới, giải phóng toàn bộ 80% màn hình phía trên, KHÔNG BỊ CHE KHUẤT!
+        camera.position.set(0, 4.8, 9.8);
+        camera.lookAt(0, 0.9, -16);
+      } else {
+        // Chế độ Solo màn hình ngang:
+        camera.fov = 55;
+        camera.position.set(0, 3.5, 8.2);
+        camera.lookAt(0, 1.1, -14);
+      }
+      camera.updateProjectionMatrix();
+    }
+
+    function handleResize() {
+      const w1 = vp1Container.clientWidth;
+      const h1 = vp1Container.clientHeight;
+      if (w1 > 0 && h1 > 0) {
+        updateCameraForViewport(camera1, vp1Container);
+        renderer1.setSize(w1, h1);
+      }
+
+      if (gameMode === 'versus') {
+        const w2 = vp2Container.clientWidth;
+        const h2 = vp2Container.clientHeight;
+        if (w2 > 0 && h2 > 0) {
+          updateCameraForViewport(camera2, vp2Container);
+          renderer2.setSize(w2, h2);
+        }
+      }
+    }
+
+    window.addEventListener('resize', handleResize);
+    animate();
+  </script>
+</body>
+</html>
