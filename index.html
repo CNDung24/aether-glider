@@ -29,95 +29,95 @@
       width: 100%;
       height: 100%;
       position: relative;
-      display: flex;
     }
-    .viewport {
+    /* Main Viewport (Your View): 100% Full Screen */
+    #vp-p1 {
+      width: 100%;
       height: 100%;
-      position: relative;
+      position: absolute;
+      top: 0;
+      left: 0;
       overflow: hidden;
     }
-    .viewport.single {
-      width: 100%;
-    }
-    .viewport.split {
-      width: 50%;
-    }
-    .viewport-divider {
+
+    /* Opponent Mini-Cam (Picture-in-Picture in Top-Right Corner) */
+    #vp-p2 {
       position: absolute;
-      left: 50%;
-      top: 0;
-      bottom: 0;
-      width: 3px;
-      background: linear-gradient(180deg, #38bdf8 0%, #f472b6 50%, #38bdf8 100%);
-      box-shadow: 0 0 15px rgba(56, 189, 248, 0.8);
-      z-index: 15;
+      top: 18px;
+      right: 18px;
+      width: 290px;
+      height: 170px;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 2px solid #f472b6;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.8), 0 0 25px rgba(244, 114, 182, 0.45);
+      z-index: 30;
+      background: #050714;
       display: none;
+      transition: all 0.3s ease;
+    }
+    @media (max-width: 600px) {
+      #vp-p2 {
+        width: 160px;
+        height: 100px;
+        top: 12px;
+        right: 12px;
+        border-radius: 12px;
+      }
     }
 
-    /* Player Viewport Corner Badges (Completely away from center track) */
-    .vp-badge {
+    /* Mini-Cam PiP Header Bar */
+    .pip-header {
       position: absolute;
-      top: 14px;
-      display: none;
+      top: 8px;
+      left: 8px;
+      right: 8px;
+      display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 10px;
-      padding: 6px 16px;
-      border-radius: 999px;
-      background: rgba(15, 23, 42, 0.7);
-      backdrop-filter: blur(14px);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-      z-index: 20;
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      padding: 4px 10px;
+      border: 1px solid rgba(244, 114, 182, 0.35);
+      z-index: 10;
       pointer-events: none;
     }
-    .vp-badge.p1 {
-      left: 16px;
-      border: 1px solid rgba(56, 189, 248, 0.4);
-      color: #38bdf8;
-    }
-    .vp-badge.p2 {
-      right: 16px;
-      border: 1px solid rgba(244, 114, 182, 0.4);
-      color: #f472b6;
-    }
-    .badge-label {
-      font-size: 0.75rem;
+    .pip-tag {
+      font-size: 0.65rem;
       font-weight: 800;
-      letter-spacing: 1.2px;
+      letter-spacing: 1px;
+      color: #f472b6;
+      display: flex;
+      align-items: center;
+      gap: 6px;
       text-transform: uppercase;
     }
-    .badge-score {
+    .pip-dot {
+      width: 7px;
+      height: 7px;
+      background-color: #f43f5e;
+      border-radius: 50%;
+      animation: pipBlink 1.2s infinite ease-in-out;
+    }
+    @keyframes pipBlink {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.35; transform: scale(0.8); }
+    }
+    .pip-score {
+      font-size: 0.78rem;
+      font-weight: 900;
       font-family: monospace;
-      font-size: 1.25rem;
-      font-weight: 900;
       color: #ffffff;
     }
 
-    /* Minimalist Center Pill on Divider Line */
-    .vs-center-pill {
-      position: absolute;
-      top: 14px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #0f172a;
-      border: 1px solid #38bdf8;
-      border-radius: 999px;
-      padding: 3px 10px;
-      font-size: 0.7rem;
-      font-weight: 900;
-      color: #ffffff;
-      box-shadow: 0 0 10px rgba(56, 189, 248, 0.8);
-      z-index: 25;
-      letter-spacing: 1px;
-    }
-
-    /* Solo Mode Clean Top HUD */
-    .solo-hud {
+    /* Player Main Top HUD (Left side) */
+    .main-hud {
       position: absolute;
       top: 16px;
       left: 20px;
-      right: 20px;
       display: flex;
-      justify-content: space-between;
+      gap: 12px;
       align-items: center;
       pointer-events: none;
       z-index: 25;
@@ -320,35 +320,27 @@
 </head>
 <body tabindex="0">
 
-  <!-- Main Viewports Layout (Single or Split 1v1) -->
+  <!-- Main Viewports Layout -->
   <div id="game-wrapper">
-    <!-- Viewport 1 (Your View) -->
-    <div class="viewport single" id="vp-p1">
-      <div class="vp-badge p1" id="badge-p1">
-        <span class="badge-label">🚀 BẠN</span>
-        <span class="badge-score" id="vs-p1-score">0</span>
-      </div>
-    </div>
-    <!-- Middle Split Divider with Minimalist VS Dot -->
-    <div class="viewport-divider" id="vp-divider">
-      <div class="vs-center-pill">VS</div>
-    </div>
-    <!-- Viewport 2 (Opponent / Friend View) -->
-    <div class="viewport" id="vp-p2" style="display: none;">
-      <div class="vp-badge p2" id="badge-p2">
-        <span class="badge-label">👾 ĐỐI THỦ</span>
-        <span class="badge-score" id="vs-p2-score">0</span>
+    <!-- Viewport 1 (Your View: 100% Full Screen) -->
+    <div id="vp-p1"></div>
+
+    <!-- Viewport 2 (Opponent Picture-in-Picture Mini Camera at Top-Right) -->
+    <div id="vp-p2">
+      <div class="pip-header">
+        <div class="pip-tag"><span class="pip-dot"></span> LIVE ĐỐI THỦ</div>
+        <div class="pip-score"><span id="vs-p2-score">0</span> pts</div>
       </div>
     </div>
   </div>
 
-  <!-- Solo HUD (Only in single-player mode) -->
-  <div class="solo-hud" id="solo-hud">
+  <!-- Main Top Left HUD -->
+  <div class="main-hud">
     <div class="hud-pill">
       <span class="hud-lbl">ĐIỂM</span>
-      <span class="hud-val" id="hud-score">0</span>
+      <span class="hud-val" id="vs-p1-score">0</span>
     </div>
-    <div class="hud-pill" id="hud-best-box">
+    <div class="hud-pill" id="solo-best-box">
       <span class="hud-lbl">KỶ LỤC</span>
       <span class="hud-val" id="hud-best" style="color: #f472b6;">0</span>
     </div>
@@ -668,39 +660,23 @@
 
     // Update Score UI in either Solo or Versus mode
     function updateScoreDisplay() {
-      if (gameMode === 'versus') {
-        const p1El = document.getElementById('vs-p1-score');
-        const p2El = document.getElementById('vs-p2-score');
-        if (p1El) p1El.textContent = score1;
-        if (p2El) p2El.textContent = score2;
-      } else {
-        const hudEl = document.getElementById('hud-score');
-        if (hudEl) hudEl.textContent = score1;
-      }
+      const p1El = document.getElementById('vs-p1-score');
+      const p2El = document.getElementById('vs-p2-score');
+      if (p1El) p1El.textContent = score1;
+      if (p2El) p2El.textContent = score2;
     }
 
-    // Set Split Screen Mode UI
+    // Toggle 1v1 Picture-in-Picture Mini Camera
     function setSplitScreen(enable) {
-      const divider = document.getElementById('vp-divider');
-      const badge1 = document.getElementById('badge-p1');
-      const badge2 = document.getElementById('badge-p2');
-      const soloHud = document.getElementById('solo-hud');
+      const pip = document.getElementById('vp-p2');
+      const bestBox = document.getElementById('solo-best-box');
 
       if (enable) {
-        vp1Container.className = 'viewport split';
-        vp2Container.style.display = 'block';
-        vp2Container.className = 'viewport split';
-        divider.style.display = 'block';
-        if (badge1) badge1.style.display = 'flex';
-        if (badge2) badge2.style.display = 'flex';
-        if (soloHud) soloHud.style.display = 'none';
+        pip.style.display = 'block';
+        if (bestBox) bestBox.style.display = 'none';
       } else {
-        vp1Container.className = 'viewport single';
-        vp2Container.style.display = 'none';
-        divider.style.display = 'none';
-        if (badge1) badge1.style.display = 'none';
-        if (badge2) badge2.style.display = 'none';
-        if (soloHud) soloHud.style.display = 'flex';
+        pip.style.display = 'none';
+        if (bestBox) bestBox.style.display = 'flex';
       }
       handleResize();
     }
@@ -1148,21 +1124,9 @@
       if (w <= 0 || h <= 0) return;
       const aspect = w / h;
       camera.aspect = aspect;
-
-      if (aspect < 1.0) {
-        // Chế độ chia đôi màn hình (Viewport hẹp dọc):
-        // 1. Góc nhìn FOV thích ứng rộng để thấy trọn vẹn cả 3 làn đường và dải lan can neon 2 bên:
-        camera.fov = Math.min(84, Math.max(68, Math.round(55 / aspect * 0.92)));
-        // 2. Nâng góc nhìn camera cao lên (y = 4.8) và lùi lại (z = 9.8), nhìn thẳng về phía xa (-16):
-        // Giúp phi thuyền nằm sát mép dưới, giải phóng toàn bộ 80% màn hình phía trên, KHÔNG BỊ CHE KHUẤT!
-        camera.position.set(0, 4.8, 9.8);
-        camera.lookAt(0, 0.9, -16);
-      } else {
-        // Chế độ Solo màn hình ngang:
-        camera.fov = 55;
-        camera.position.set(0, 3.5, 8.2);
-        camera.lookAt(0, 1.1, -14);
-      }
+      camera.fov = 55;
+      camera.position.set(0, 3.5, 8.2);
+      camera.lookAt(0, 1.1, -14);
       camera.updateProjectionMatrix();
     }
 
