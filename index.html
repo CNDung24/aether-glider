@@ -65,6 +65,51 @@
         border-radius: 12px;
       }
     }
+    #vp-p2.spectating-fullscreen {
+      width: 100% !important;
+      height: 100% !important;
+      top: 0 !important;
+      right: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      z-index: 20 !important;
+    }
+
+    /* Spectator & Match In-Game Banners */
+    .match-banner {
+      position: absolute;
+      top: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 10px 24px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 45;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+      animation: bannerSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+    @keyframes bannerSlideDown {
+      from { transform: translate(-50%, -30px); opacity: 0; }
+      to { transform: translate(-50%, 0); opacity: 1; }
+    }
+    .match-banner.spectating {
+      background: rgba(15, 23, 42, 0.88);
+      border: 1.5px solid #38bdf8;
+      color: #ffffff;
+    }
+    .match-banner.rival-down {
+      background: rgba(49, 10, 84, 0.88);
+      border: 1.5px solid #f472b6;
+      color: #ffffff;
+    }
+    .banner-icon {
+      font-size: 1.4rem;
+    }
 
     /* Mini-Cam PiP Header Bar */
     .pip-header {
@@ -331,6 +376,23 @@
         <div class="pip-tag"><span class="pip-dot"></span> LIVE ĐỐI THỦ</div>
         <div class="pip-score"><span id="vs-p2-score">0</span> pts</div>
       </div>
+    </div>
+  </div>
+
+  <!-- Spectator & Rival Status Banners -->
+  <div id="banner-spectating" class="match-banner spectating" style="display: none;">
+    <span class="banner-icon">👁️</span>
+    <div>
+      <div style="font-weight: 800; font-size: 0.95rem;">BẠN ĐÃ VA CHẠM! ĐANG THEO DÕI ĐỐI THỦ...</div>
+      <div style="font-size: 0.8rem; color: #94a3b8;">Điểm của bạn đã khóa ở: <strong id="spec-my-score" style="color: #38bdf8;">0</strong> pts</div>
+    </div>
+  </div>
+
+  <div id="banner-rival-crashed" class="match-banner rival-down" style="display: none;">
+    <span class="banner-icon">🎯</span>
+    <div>
+      <div style="font-weight: 800; font-size: 0.95rem;">ĐỐI THỦ ĐÃ VA CHẠM!</div>
+      <div style="font-size: 0.8rem; color: #f1f5f9;">Điểm đối thủ dừng ở: <strong id="rival-down-score" style="color: #f472b6;">0</strong> pts. Tiếp tục đua để vượt điểm!</div>
     </div>
   </div>
 
@@ -707,14 +769,36 @@
       }
     }
 
-    function sendGameOverSignal() {
+    let isSpectating = false;
+
+    function enterSpectatorMode() {
+      if (isSpectating) return;
+      isSpectating = true;
+      const pip = document.getElementById('vp-p2');
+      pip.classList.add('spectating-fullscreen');
+      document.getElementById('vp-p1').style.display = 'none';
+      document.getElementById('spec-my-score').textContent = score1;
+      document.getElementById('banner-spectating').style.display = 'flex';
+      handleResize();
+    }
+
+    function showRivalCrashedNotification(rivalScore) {
+      const banner = document.getElementById('banner-rival-crashed');
+      document.getElementById('rival-down-score').textContent = rivalScore;
+      banner.style.display = 'flex';
+      setTimeout(() => {
+        banner.style.display = 'none';
+      }, 5000);
+    }
+
+    function sendPlayerCrashedSignal(finalScore) {
       if (peerConn && peerConn.open) {
         for (let i = 0; i < 5; i++) {
           setTimeout(() => {
             if (peerConn && peerConn.open) {
-              try { peerConn.send({ type: 'gameover' }); } catch(e) {}
+              try { peerConn.send({ type: 'player_crashed', finalScore: finalScore }); } catch(e) {}
             }
-          }, i * 60);
+          }, i * 50);
         }
       }
     }
@@ -740,6 +824,16 @@
       targetX1 = 0; currentX1 = 0;
       targetX2 = 0; currentX2 = 0;
       isAlive1 = true; isAlive2 = true;
+      isSpectating = false;
+
+      // Reset viewports from spectator mode
+      document.getElementById('vp-p1').style.display = 'block';
+      const pip = document.getElementById('vp-p2');
+      pip.classList.remove('spectating-fullscreen');
+      document.getElementById('banner-spectating').style.display = 'none';
+      document.getElementById('banner-rival-crashed').style.display = 'none';
+      document.getElementById('gameover-screen').style.display = 'none';
+
       ship1.visible = true;
       ship2.visible = true;
       ship1.position.set(0, 0.45, 0);
@@ -750,13 +844,13 @@
 
       audio.startEngine();
       isPlaying = true;
+      handleResize();
     }
 
-    function triggerGameOver(reason) {
+    function triggerFinalComparison() {
       if (!isPlaying) return;
       isPlaying = false;
       audio.stopEngine();
-      audio.playCrash();
 
       const goScreen = document.getElementById('gameover-screen');
       const goTitle = document.getElementById('go-title');
@@ -769,29 +863,29 @@
         oppBox.style.display = 'flex';
         document.getElementById('go-opponent-score').textContent = score2;
 
-        if (reason === 'you_crashed') {
-          goTitle.textContent = "BẠN ĐÃ THUA! 💥";
-          goMsg.textContent = "Bạn đã va chạm vào chướng ngại vật!";
-        } else if (reason === 'opponent_crashed') {
+        if (score1 > score2) {
           goTitle.textContent = "BẠN CHIẾN THẮNG! 👑";
-          goMsg.textContent = "Đối thủ đã va chạm vào chướng ngại vật!";
-        } else if (reason === 'opponent_disconnected') {
-          goTitle.textContent = "ĐỐI THỦ MẤT KẾT NỐI! ⚠️";
-          goMsg.textContent = "Đối thủ đã rời khỏi phòng đấu!";
+          goMsg.textContent = `Bạn đạt ${score1} điểm, đối thủ đạt ${score2} điểm. Bạn đã giành chiến thắng thuyết phục!`;
+        } else if (score1 < score2) {
+          goTitle.textContent = "ĐỐI THỦ CHIẾN THẮNG! 🎯";
+          goMsg.textContent = `Đối thủ đạt ${score2} điểm, bạn đạt ${score1} điểm. Rất tiếc, hãy phục thù ở ván sau!`;
         } else {
-          goTitle.textContent = score1 >= score2 ? "BẠN CHIẾN THẮNG! 👑" : "ĐỐI THỦ THẮNG! 🎯";
-          goMsg.textContent = `Tỉ số chung cuộc: ${score1} vs ${score2}`;
+          goTitle.textContent = "TRẬN ĐẤU HÒA! 🤝";
+          goMsg.textContent = `Cả hai đều xuất sắc cùng đạt ${score1} điểm!`;
         }
       } else {
         oppBox.style.display = 'none';
         goTitle.textContent = "Crashed!";
-        goMsg.textContent = "Một pha lướt sóng đầy kịch tính!";
+        goMsg.textContent = `Bạn đã hoàn thành chuyến bay với ${score1} điểm!`;
       }
 
-      // Hiện bảng sau 450ms để kịp thưởng thức hiệu ứng phi thuyền nổ tung
+      // Hide temporary banners when game over modal pops up
+      document.getElementById('banner-spectating').style.display = 'none';
+      document.getElementById('banner-rival-crashed').style.display = 'none';
+
       setTimeout(() => {
         goScreen.style.display = 'flex';
-      }, 450);
+      }, 500);
     }
 
     /* ==========================================================================
@@ -880,12 +974,21 @@
             spawnElementsForWorld(world1.scene, obstacles1, energyOrbs1, data.spawn.lane, data.spawn.type);
             spawnElementsForWorld(world2.scene, obstacles2, energyOrbs2, data.spawn.lane, data.spawn.type);
           }
-        } else if (data.type === 'gameover') {
-          if (isPlaying) {
+        } else if (data.type === 'player_crashed' || data.type === 'gameover') {
+          if (isPlaying && isAlive2) {
             isAlive2 = false;
+            if (data.finalScore !== undefined) score2 = data.finalScore;
+            updateScoreDisplay();
             createExplosion(world2.scene, ship2.position, 0xf472b6);
             ship2.visible = false;
-            triggerGameOver('opponent_crashed');
+
+            if (isAlive1) {
+              // Bạn vẫn còn sống: hiện thông báo đối thủ đã đâm vào chướng ngại vật!
+              showRivalCrashedNotification(score2);
+            } else {
+              // Bạn đã chết trước đó (đang theo dõi), nay đối thủ cũng chết -> kết thúc ván đấu và so điểm!
+              triggerFinalComparison();
+            }
           }
         } else if (data.type === 'restart') {
           document.getElementById('gameover-screen').style.display = 'none';
@@ -895,7 +998,7 @@
 
       peerConn.on('close', () => {
         if (gameMode === 'versus' && isPlaying) {
-          triggerGameOver('opponent_disconnected');
+          triggerFinalComparison();
         }
       });
     }
@@ -989,27 +1092,30 @@
       }
 
       if (isPlaying) {
-        currentSpeed = baseSpeed + (score1 * 0.035);
+        currentSpeed = baseSpeed + (Math.max(score1, score2) * 0.035);
         document.getElementById('hud-speed').textContent = `${(currentSpeed / baseSpeed).toFixed(1)}x`;
-        audio.updateEnginePitch(currentSpeed / baseSpeed);
+        if (isAlive1) audio.updateEnginePitch(currentSpeed / baseSpeed);
 
-        score1 += Math.floor(delta * 12);
-        updateScoreDisplay();
+        if (isAlive1) {
+          score1 += Math.floor(delta * 12);
+          updateScoreDisplay();
 
-        // Player 1 Steering
-        const STEER_SPEED = 24.0;
-        if (keys.left) targetX1 = Math.max(targetX1 - STEER_SPEED * delta, -ROAD_WIDTH / 2 + 0.9);
-        if (keys.right) targetX1 = Math.min(targetX1 + STEER_SPEED * delta, ROAD_WIDTH / 2 - 0.9);
+          // Player 1 Steering
+          const STEER_SPEED = 24.0;
+          if (keys.left) targetX1 = Math.max(targetX1 - STEER_SPEED * delta, -ROAD_WIDTH / 2 + 0.9);
+          if (keys.right) targetX1 = Math.min(targetX1 + STEER_SPEED * delta, ROAD_WIDTH / 2 - 0.9);
 
-        currentX1 += (targetX1 - currentX1) * 16 * delta;
-        ship1.position.x = currentX1;
-        // Giữ góc nghiêng tinh tế (-0.16) để đường đua không bị méo/nghiêng ngả
-        ship1.rotation.z = (targetX1 - currentX1) * -0.16;
+          currentX1 += (targetX1 - currentX1) * 16 * delta;
+          ship1.position.x = currentX1;
+          ship1.rotation.z = (targetX1 - currentX1) * -0.16;
+        }
 
         // Player 2 Steering (Interpolated from network data)
-        currentX2 += (targetX2 - currentX2) * 16 * delta;
-        ship2.position.x = currentX2;
-        ship2.rotation.z = (targetX2 - currentX2) * -0.16;
+        if (isAlive2) {
+          currentX2 += (targetX2 - currentX2) * 16 * delta;
+          ship2.position.x = currentX2;
+          ship2.rotation.z = (targetX2 - currentX2) * -0.16;
+        }
 
         // Grid scroll
         world1.grid.position.z += currentSpeed * delta;
@@ -1056,9 +1162,25 @@
             isAlive1 = false;
             createExplosion(world1.scene, ship1.position, 0x38bdf8);
             ship1.visible = false;
-            sendGameOverSignal();
-            triggerGameOver('you_crashed');
-            return;
+            audio.stopEngine();
+            audio.playCrash();
+
+            sendPlayerCrashedSignal(score1);
+
+            if (gameMode === 'solo') {
+              triggerFinalComparison();
+              return;
+            }
+
+            // In 1v1 mode:
+            if (!isAlive2) {
+              // Đối thủ đã chết trước đó, nay bạn cũng chết -> Cả 2 đều chết, so điểm xem ai thắng!
+              triggerFinalComparison();
+              return;
+            } else {
+              // Đối thủ vẫn còn sống! Bật chế độ khán giả (Spectator) để xem đối thủ chơi đến khi chết!
+              enterSpectatorMode();
+            }
           }
           if (ob.position.z > 12) { world1.scene.remove(ob); obstacles1.splice(i, 1); }
         }
@@ -1066,7 +1188,7 @@
         for (let i = energyOrbs1.length - 1; i >= 0; i--) {
           const orb = energyOrbs1[i];
           orb.position.z += currentSpeed * delta;
-          if (Math.hypot(orb.position.x - ship1.position.x, orb.position.z - ship1.position.z) < shipRadius + 0.65) {
+          if (isAlive1 && Math.hypot(orb.position.x - ship1.position.x, orb.position.z - ship1.position.z) < shipRadius + 0.65) {
             score1 += 10;
             audio.playCoin();
             world1.scene.remove(orb);
@@ -1087,9 +1209,15 @@
               isAlive2 = false;
               createExplosion(world2.scene, ship2.position, 0xf472b6);
               ship2.visible = false;
-              sendGameOverSignal();
-              triggerGameOver('opponent_crashed');
-              return;
+
+              if (isAlive1) {
+                // Bạn vẫn còn sống: hiện thông báo đối thủ đã chết!
+                showRivalCrashedNotification(score2);
+              } else {
+                // Bạn đã chết trước đó, nay đối thủ cũng chết -> Kết thúc ván đấu và so điểm!
+                triggerFinalComparison();
+                return;
+              }
             }
 
             if (ob.position.z > 12) { world2.scene.remove(ob); obstacles2.splice(i, 1); }
@@ -1109,10 +1237,12 @@
         }
       }
 
-      // Render Viewport 1 (Always)
-      renderer1.render(world1.scene, camera1);
+      // Render Viewport 1 (When playing normally)
+      if (!isSpectating) {
+        renderer1.render(world1.scene, camera1);
+      }
 
-      // Render Viewport 2 (In 1v1 Versus Mode)
+      // Render Viewport 2 (In 1v1 Versus Mode or Spectating)
       if (gameMode === 'versus') {
         renderer2.render(world2.scene, camera2);
       }
